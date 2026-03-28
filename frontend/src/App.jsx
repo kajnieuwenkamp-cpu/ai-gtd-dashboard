@@ -3,6 +3,7 @@ import { getTasks, createTask } from './api/tasks'
 import TaskForm from './components/TaskForm'
 import TaskList from './components/TaskList'
 import InboxProcessor from './components/InboxProcessor'
+import NotesProcessor from './components/NotesProcessor'
 import { useState } from 'react'
 
 const STATUS_FILTERS = [
@@ -37,6 +38,7 @@ export default function App() {
         Getting Things Done — aangedreven door Claude AI
       </p>
 
+      <NotesProcessor />
       <InboxProcessor />
 
       <TaskForm onAdd={data => addMutation.mutate(data)} />
