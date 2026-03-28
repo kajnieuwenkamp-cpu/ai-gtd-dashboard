@@ -2,12 +2,15 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 import anthropic
 import json
+import os
 
 from models.task import AIRequest
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-client = anthropic.Anthropic()
+def get_client():
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    return anthropic.Anthropic(api_key=api_key)
 
 SYSTEM_PROMPT = """Je bent een AI-assistent gespecialiseerd in GTD (Getting Things Done) productiviteitsmethoden.
 Je helpt gebruikers met:
@@ -41,7 +44,7 @@ async def chat_with_ai(request: AIRequest):
     messages.append({"role": "user", "content": request.message})
 
     def stream_response():
-        with client.messages.stream(
+        with get_client().messages.stream(
             model="claude-opus-4-6",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
@@ -68,19 +71,31 @@ Geef een JSON-respons met:
 - priority: "low" | "medium" | "high"
 - reasoning: korte uitleg
 
-Reageer ALLEEN met geldig JSON, geen extra tekst."""
+Reageer ALLEEN met geldig JSON. Geen markdown, geen code-blokken, geen backticks, geen uitleg. Begin direct met {{ en eindig met }}."""
 
-    response = client.messages.create(
+    response = get_client().messages.create(
         model="claude-opus-4-6",
         max_tokens=512,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
+        output_config={
+            "format": {
+                "type": "json_schema",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "action_type": {"type": "string", "enum": ["do", "delegate", "defer", "delete"]},
+                        "next_action": {"type": "string"},
+                        "project": {"type": "string"},
+                        "context": {"type": "string"},
+                        "priority": {"type": "string", "enum": ["low", "medium", "high"]},
+                        "reasoning": {"type": "string"},
+                    },
+                    "required": ["action_type", "next_action", "priority", "reasoning"],
+                    "additionalProperties": False,
+                },
+            }
+        },
     )
 
-    text = response.content[0].text
-    try:
-        result = json.loads(text)
-    except json.JSONDecodeError:
-        result = {"raw": text}
-
-    return result
+    return json.loads(response.content[0].text)
